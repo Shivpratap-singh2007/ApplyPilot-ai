@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: applypilot
+      POSTGRES_USER: applypilot
+      POSTGRES_PASSWORD: change-me-in-production
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U applypilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_ENV: production
+      SECRET_KEY: replace-with-at-least-32-character-random-secret-key
+      COOKIE_SECURE: "false"
+      DATABASE_URL: postgresql+psycopg://applypilot:change-me-in-production@postgres:5432/applypilot
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: qwen3:4b
+      OLLAMA_FALLBACK_MODEL: qwen3:1.7b
+      ALLOW_LOCALHOST_AUTOMATION: "false"
+      ALLOWED_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    volumes:
+      - appdata:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  appdata:
+
